@@ -4,8 +4,8 @@ import requests
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="Airbnb Strategy Agent 2023", layout="wide")
+# 1. CONFIGURACIÓN
+st.set_page_config(page_title="Airbnb Strategic Analyst 2023", layout="wide")
 
 # 2. CARGA DE DATOS
 @st.cache_data
@@ -13,93 +13,94 @@ def load_data():
     try:
         df = pd.read_csv("AB_US_2023.csv")
         df.columns = df.columns.str.strip()
-        # Limpieza de coordenadas para evitar errores en el mapa
-        df = df.dropna(subset=['latitude', 'longitude'])
-        # Asegurarnos de que lat/lon sean números
-        df['latitude'] = pd.to_numeric(df['latitude'], errors='coerce')
-        df['longitude'] = pd.to_numeric(df['longitude'], errors='coerce')
-        return df.dropna(subset=['latitude', 'longitude'])
+        df = df.dropna(subset=['latitude', 'longitude', 'neighbourhood', 'city'])
+        return df
     except Exception as e:
-        st.error(f"Error al cargar el CSV: {e}")
+        st.error(f"Error: {e}")
         return None
 
 df = load_data()
 
-# 3. LÓGICA DE ESTADÍSTICAS
-def get_stats():
-    if df is not None:
-        avg_price = df['price'].mean()
-        # Tu lógica de barrio más popular
-        top_n = df['neighbourhood'].value_counts().idxmax()
-        # Host con más propiedades (profesional)
-        df_365 = df[df['availability_365'] == 365]
-        host_top = df_365['host_name'].value_counts().idxmax() if not df_365.empty else "N/A"
-        return avg_price, host_top, top_n
-    return 0, "N/A", "N/A"
+# 3. EXTRACCIÓN DE INSIGHTS (Para alimentar el cerebro de la IA)
+def get_advanced_insights(df):
+    avg_p = df['price'].mean()
+    top_n = df['neighbourhood'].value_counts().idxmax()
+    top_n_count = df['neighbourhood'].value_counts().max()
+    top_city = df['city'].value_counts().idxmax()
+    # Encontrar la ciudad más cara
+    expensive_city = df.groupby('city')['price'].mean().idxmax()
+    expensive_val = df.groupby('city')['price'].mean().max()
+    
+    return avg_p, top_n, top_n_count, top_city, expensive_city, expensive_val
 
-# 4. INTERFAZ DE USUARIO
-st.title("🤖 Airbnb Strategic Agent")
+# 4. INTERFAZ
+st.title("🚀 Airbnb Strategic Insight Agent")
 st.markdown("---")
 
 if df is not None:
-    avg_p, top_h, top_n = get_stats()
+    avg_p, top_n, n_count, top_c, exp_c, exp_v = get_advanced_insights(df)
     
-    # Métricas en la parte superior
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Barrio más Popular", top_n)
-    c2.metric("Precio Promedio", f"${avg_p:.2f}")
-    c3.metric("Anfitrión Líder", top_h)
+    # Dashboard Visual
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Precio Promedio", f"${avg_p:.2f}")
+    col2.metric("Barrio Hot 🔥", top_n)
+    col3.metric("Ciudad más Cara", exp_c)
+    col4.metric("Ciudad con más Listings", top_c)
 
-    # --- MAPA INTERACTIVO (Versión compatible que NO se ve negra) ---
-    st.markdown("### 📍 Distribución de Propiedades en EE.UU.")
+    # Mapa interactivo
+    st.map(df[['latitude', 'longitude']].sample(n=1000), color='#FF5A5F')
+
+    # CONFIGURACIÓN DEL AGENTE EN SIDEBAR
+    st.sidebar.header("🧠 Cerebro del Agente")
+    api_key = st.sidebar.text_input("Groq API Key:", type="password")
     
-    # Filtramos una muestra para que el mapa sea fluido
-    # Usamos st.map que es más estable para despliegues rápidos
-    map_df = df[['latitude', 'longitude']].sample(n=1500)
-    st.map(map_df, color='#FF5A5F') # El color oficial de Airbnb
-
-    # --- SECCIÓN DEL AGENTE (GROQ) ---
-    st.sidebar.header("🔑 Configuración")
-    api_key = st.sidebar.text_input("Groq API Key:", type="password", help="Consíguela en console.groq.com")
-    
-    st.sidebar.markdown("""
-    **Guía para el video:**
-    - El mapa muestra 1,500 puntos aleatorios.
-    - El agente usa **Llama 3** para analizar.
-    """)
-
-    user_input = st.chat_input("Hazle una pregunta estratégica al agente...")
+    user_input = st.chat_input("Pregúntame algo complejo, ej: ¿Por qué hay tantos listings en el área de Unincorporated?")
 
     if user_input:
         if not api_key:
-            st.warning("⚠️ Introduce la API Key en la barra lateral para activar al agente.")
+            st.warning("Introduce la API Key para hablar con el analista.")
         else:
-            # Prompt estratégico
-            prompt = f"""Eres un consultor de Airbnb. 
-            Contexto: El barrio más popular es {top_n}, el precio medio es ${avg_p:.2f} y el líder es {top_h}.
-            Pregunta: {user_input}"""
+            # PROMPT EVOLUCIONADO (Aquí está el truco para que no sea un robot)
+            prompt_analista = f"""
+            Eres un consultor senior de Real Estate y Airbnb. No eres un robot, eres un analista con visión crítica.
+            
+            CONTEXTO REAL DEL DATASET 2023:
+            1. El mercado está promediando los ${avg_p:.2f} por noche.
+            2. El barrio '{top_n}' es el más saturado con {n_count} propiedades.
+            3. La ciudad de '{exp_c}' es la más exclusiva, con precios promedio de ${exp_v:.2f}.
+            4. '{top_c}' es el mercado con mayor volumen de oferta.
+            
+            REGLAS DE RESPUESTA:
+            - Usa un tono profesional pero cercano, como un consultor de negocios.
+            - No repitas siempre los mismos números si no vienen al caso.
+            - Si te preguntan por 'Unincorporated Areas', explica que esto suele deberse a zonas rurales o zonas turísticas fuera de límites municipales donde las regulaciones suelen ser más laxas.
+            - Analiza tendencias: menciona competencia, saturación de mercado y oportunidades de inversión.
+            """
             
             headers = {"Authorization": f"Bearer {api_key.strip()}", "Content-Type": "application/json"}
             payload = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "system", "content": prompt}, {"role": "user", "content": user_input}]
+                "messages": [
+                    {"role": "system", "content": prompt_analista},
+                    {"role": "user", "content": user_input}
+                ],
+                "temperature": 0.8 # Subimos la temperatura para más creatividad
             }
             
             try:
-                with st.spinner("El agente está pensando..."):
+                with st.spinner("Analizando mercado..."):
                     response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
                     respuesta = response.json()['choices'][0]['message']['content']
                     st.chat_message("assistant").write(respuesta)
             except:
-                st.error("Error al conectar con Groq. Verifica tu API Key.")
+                st.error("Error al conectar con el analista.")
 
-    # --- GRÁFICOS INFERIORES ---
+    # Gráficos extra para el video
     st.markdown("---")
-    g1, g2 = st.columns(2)
-    with g1:
-        st.markdown("#### Top 10 Barrios (Oferta)")
+    c_left, c_right = st.columns(2)
+    with c_left:
+        st.subheader("Top 10 Barrios por Oferta")
         st.bar_chart(df['neighbourhood'].value_counts().head(10))
-    with g2:
-        st.markdown("#### Precio por Ciudad (Top 10)")
-        top_cities = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
-        st.bar_chart(top_cities)
+    with c_right:
+        st.subheader("Precio Medio por Ciudad (Top 10)")
+        st.bar_chart(df.groupby('city')['price'].mean().sort_values(ascending=False).head(10))

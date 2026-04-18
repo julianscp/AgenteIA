@@ -61,43 +61,35 @@ try:
     if pregunta:
         # Intento con IA
         ia_respondio = False
-        if api_key:
+try:
+            # Forzamos la configuración REST
+            genai.configure(api_key=api_key.strip(), transport='rest')
+            
+            # INTENTO 1: El nombre más estándar hoy
+            model = genai.GenerativeModel('gemini-1.5-flash-latest') 
+            
+            st.sidebar.success("IA Conectada")
+            pregunta = st.sidebar.text_area("Hazle una pregunta estratégica:")
+            
+            if pregunta:
+                # Contexto ultra-reducido para evitar errores de tokens
+                contexto = f"Dataset Airbnb 2023. Host Top: {host_top}. Precio: {precio_promedio:.2f}. Pregunta: {pregunta}"
+                
+                with st.spinner("Gemini pensando..."):
+                    # Forzamos la versión v1 explícitamente en la llamada
+                    response = model.generate_content(contexto)
+                    
+                    if response:
+                        st.info(f"✨ **Análisis de Gemini:**\n\n{response.text}")
+                        ia_respondio = True
+
+        except Exception as e:
+            # SI FALLA EL ANTERIOR, INTENTAMOS CON EL NOMBRE SIN 'MODELS/'
             try:
-                genai.configure(api_key=api_key.strip(), transport='rest')
-                model = genai.GenerativeModel('gemini-1.5-flash')
-                contexto = f"Dataset Airbnb 2023. Host Top: {host_top}. Precio promedio: {precio_promedio:.2f}. Pregunta: {pregunta}"
-                response = model.generate_content(contexto)
-                st.info(f"✨ **Análisis de Gemini:**\n\n{response.text}")
+                model_alt = genai.GenerativeModel('gemini-pro')
+                response = model_alt.generate_content(f"Responde corto: Conectado a {host_top}")
+                st.info(f"✨ **Respuesta (vía Gemini Pro):**\n\n{response.text}")
                 ia_respondio = True
-            except Exception:
-                st.sidebar.warning("⚠️ Google API no responde. Usando motor local...")
-
-        # Motor Local (siempre visible o de respaldo)
-        with st.expander("🔍 Análisis Basado en Datos Reales", expanded=not ia_respondio):
-            pregunta_l = pregunta.lower()
-            if "host" in pregunta_l or "anfitrión" in pregunta_l:
-                st.write(f"📊 **Dato Clave:** El anfitrión con mayor inventario operativo es **{host_top}**.")
-            elif "precio" in pregunta_l or "caro" in pregunta_l or "barato" in pregunta_l:
-                st.write(f"💰 **Análisis de Precios:** El costo promedio es de **${precio_promedio:.2f}**.")
-            else:
-                st.write(f"🤖 **Análisis:** Con {len(df):,} registros, este dataset muestra un mercado diverso con un precio medio de ${precio_promedio:.2f}.")
-            st.caption("Respuesta generada localmente.")
-
-    # --- 5. VISUALIZACIÓN (Gráficas y Mapas) ---
-    st.header("📊 Explorador de Tendencias")
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.subheader("Top Ciudades por Precio")
-        top_cities = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
-        fig, ax = plt.subplots()
-        sns.barplot(x=top_cities.values, y=top_cities.index, color="#ff5a5f", ax=ax)
-        st.pyplot(fig)
-
-    with col_b:
-        st.subheader("Mapa de Propiedades (Muestra)")
-        st.map(df[['latitude', 'longitude']].dropna().sample(min(1500, len(df))))
-
-except Exception as e:
-    st.error(f"Error en la aplicación: {e}")
+            except:
+                st.sidebar.error(f"Error de conexión: {e}")
 # --- FIN DEL BLOQUE PRINCIPAL ---

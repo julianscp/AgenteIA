@@ -10,7 +10,7 @@ st.title("🏠 Airbnb Concierge Inteligente (Versión Estable)")
 @st.cache_data
 def load_data():
     # Prueba con el nombre de tu archivo (mini u original)
-    return pd.read_csv("AB_US_2023_mini.csv") 
+    return pd.read_csv("AB_US_2023.csv") 
 
 try:
     df = load_data()

@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import requests
-import pydeck as pdk
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -14,9 +13,12 @@ def load_data():
     try:
         df = pd.read_csv("AB_US_2023.csv")
         df.columns = df.columns.str.strip()
-        # Limpieza básica de coordenadas
+        # Limpieza de coordenadas para evitar errores en el mapa
         df = df.dropna(subset=['latitude', 'longitude'])
-        return df
+        # Asegurarnos de que lat/lon sean números
+        df['latitude'] = pd.to_numeric(df['latitude'], errors='coerce')
+        df['longitude'] = pd.to_numeric(df['longitude'], errors='coerce')
+        return df.dropna(subset=['latitude', 'longitude'])
     except Exception as e:
         st.error(f"Error al cargar el CSV: {e}")
         return None
@@ -27,81 +29,77 @@ df = load_data()
 def get_stats():
     if df is not None:
         avg_price = df['price'].mean()
+        # Tu lógica de barrio más popular
         top_n = df['neighbourhood'].value_counts().idxmax()
+        # Host con más propiedades (profesional)
         df_365 = df[df['availability_365'] == 365]
         host_top = df_365['host_name'].value_counts().idxmax() if not df_365.empty else "N/A"
         return avg_price, host_top, top_n
     return 0, "N/A", "N/A"
 
-# 4. INTERFAZ Y MÉTRICAS
-st.title("🤖 Airbnb Strategic Agent & Map Viewer")
+# 4. INTERFAZ DE USUARIO
+st.title("🤖 Airbnb Strategic Agent")
 st.markdown("---")
 
 if df is not None:
     avg_p, top_h, top_n = get_stats()
     
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Barrio más Popular", top_n)
-    col2.metric("Precio Promedio", f"${avg_p:.2f}")
-    col3.metric("Anfitrión Dominante", top_h)
+    # Métricas en la parte superior
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Barrio más Popular", top_n)
+    c2.metric("Precio Promedio", f"${avg_p:.2f}")
+    c3.metric("Anfitrión Líder", top_h)
 
-    # --- SECCIÓN DEL MAPA (Visualización Geográfica) ---
-    st.markdown("### 🗺️ Ubicación Geográfica de los Alojamientos")
+    # --- MAPA INTERACTIVO (Versión compatible que NO se ve negra) ---
+    st.markdown("### 📍 Distribución de Propiedades en EE.UU.")
     
-    # Tomamos una muestra para que el mapa sea fluido en el video
-    map_data = df[['latitude', 'longitude', 'price']].sample(n=2000)
-    
-    st.pydeck_chart(pdk.Deck(
-        map_style='mapbox://styles/mapbox/light-v9',
-        initial_view_state=pdk.ViewState(
-            latitude=map_data['latitude'].mean(),
-            longitude=map_data['longitude'].mean(),
-            zoom=3,
-            pitch=50,
-        ),
-        layers=[
-            pdk.Layer(
-                'ScatterplotLayer',
-                data=map_data,
-                get_position='[longitude, latitude]',
-                get_color='[200, 30, 0, 160]',
-                get_radius=20000,
-            ),
-        ],
-    ))
+    # Filtramos una muestra para que el mapa sea fluido
+    # Usamos st.map que es más estable para despliegues rápidos
+    map_df = df[['latitude', 'longitude']].sample(n=1500)
+    st.map(map_df, color='#FF5A5F') # El color oficial de Airbnb
 
-    # --- CHAT AGENTE CON GROQ ---
+    # --- SECCIÓN DEL AGENTE (GROQ) ---
     st.sidebar.header("🔑 Configuración")
-    api_key = st.sidebar.text_input("Groq API Key:", type="password")
+    api_key = st.sidebar.text_input("Groq API Key:", type="password", help="Consíguela en console.groq.com")
     
-    user_input = st.chat_input("Pregunta sobre la ubicación o estrategia...")
+    st.sidebar.markdown("""
+    **Guía para el video:**
+    - El mapa muestra 1,500 puntos aleatorios.
+    - El agente usa **Llama 3** para analizar.
+    """)
+
+    user_input = st.chat_input("Hazle una pregunta estratégica al agente...")
 
     if user_input:
         if not api_key:
-            st.warning("⚠️ Ingresa la API Key en la barra lateral.")
+            st.warning("⚠️ Introduce la API Key en la barra lateral para activar al agente.")
         else:
-            prompt_entrenamiento = f"Eres un experto inmobiliario. El barrio más popular es {top_n} y el precio medio es ${avg_p:.2f}. Responde: {user_input}"
+            # Prompt estratégico
+            prompt = f"""Eres un consultor de Airbnb. 
+            Contexto: El barrio más popular es {top_n}, el precio medio es ${avg_p:.2f} y el líder es {top_h}.
+            Pregunta: {user_input}"""
             
             headers = {"Authorization": f"Bearer {api_key.strip()}", "Content-Type": "application/json"}
             payload = {
                 "model": "llama-3.3-70b-versatile",
-                "messages": [{"role": "system", "content": prompt_entrenamiento}, {"role": "user", "content": user_input}]
+                "messages": [{"role": "system", "content": prompt}, {"role": "user", "content": user_input}]
             }
             
             try:
-                response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
-                st.chat_message("assistant").write(response.json()['choices'][0]['message']['content'])
+                with st.spinner("El agente está pensando..."):
+                    response = requests.post("https://api.groq.com/openai/v1/chat/completions", headers=headers, json=payload)
+                    respuesta = response.json()['choices'][0]['message']['content']
+                    st.chat_message("assistant").write(respuesta)
             except:
-                st.error("Error al conectar con el cerebro del agente.")
+                st.error("Error al conectar con Groq. Verifica tu API Key.")
 
-    # --- GRÁFICOS DE APOYO ---
+    # --- GRÁFICOS INFERIORES ---
     st.markdown("---")
-    c_graph1, c_graph2 = st.columns(2)
-    with c_graph1:
-        st.markdown("#### Top Barrios")
+    g1, g2 = st.columns(2)
+    with g1:
+        st.markdown("#### Top 10 Barrios (Oferta)")
         st.bar_chart(df['neighbourhood'].value_counts().head(10))
-    with c_graph2:
-        st.markdown("#### Distribución de Precios")
-        fig, ax = plt.subplots()
-        sns.histplot(df[df['price'] < 1000]['price'], bins=30, kde=True, ax=ax, color='salmon')
-        st.pyplot(fig)
+    with g2:
+        st.markdown("#### Precio por Ciudad (Top 10)")
+        top_cities = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
+        st.bar_chart(top_cities)

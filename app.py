@@ -23,10 +23,19 @@ except:
 api_key = st.sidebar.text_input("Google API Key:", type="password")
 
 if api_key:
-    genai.configure(api_key=api_key)
-    # Aquí usamos la librería pura de Google, sin LangChain
-    model = genai.GenerativeModel('gemini-1.5-flash')
-
+    try:
+        # Forzamos la configuración para ignorar versiones beta
+        genai.configure(api_key=api_key.strip())
+        
+        # Seleccionamos el modelo usando la ruta completa y estable
+        # Intentamos con 'gemini-1.5-flash' (sin el prefijo models/ si falla)
+        model = genai.GenerativeModel(
+            model_name='gemini-1.5-flash',
+            generation_config={"temperature": 0.1}
+        )
+        
+        # Prueba de conexión rápida
+        test_resp = model.generate_content("test")
     user_query = st.chat_input("¿Quién es el host con más propiedades?")
 
     if user_query:

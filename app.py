@@ -31,6 +31,7 @@ def load_data():
     df.columns = df.columns.str.strip()
     return df
 
+# --- INICIO DEL BLOQUE PRINCIPAL ---
 try:
     df = load_data()
     
@@ -52,15 +53,14 @@ try:
     m2.metric("Precio Promedio", f"${precio_promedio:.2f}")
     m3.metric("Total Registros", f"{len(df):,}")
 
-    # --- 4. CONSULTOR INTELIGENTE (Sidebar) ---
-    # --- 4. CONSULTOR INTELIGENTE (Versión Híbrida Blindada) ---
+    # --- 4. CONSULTOR INTELIGENTE (Híbrido) ---
     st.sidebar.header("🤖 Consultor de Datos")
     api_key = st.sidebar.text_input("Ingresa tu API Key (Opcional):", type="password")
-
     pregunta = st.sidebar.text_area("Hazle una pregunta estratégica:")
 
     if pregunta:
-        # 1. INTENTO CON GOOGLE (Si hay API Key)
+        # Intento con IA
+        ia_respondio = False
         if api_key:
             try:
                 genai.configure(api_key=api_key.strip(), transport='rest')
@@ -68,25 +68,36 @@ try:
                 contexto = f"Dataset Airbnb 2023. Host Top: {host_top}. Precio promedio: {precio_promedio:.2f}. Pregunta: {pregunta}"
                 response = model.generate_content(contexto)
                 st.info(f"✨ **Análisis de Gemini:**\n\n{response.text}")
+                ia_respondio = True
             except Exception:
-                st.sidebar.warning("⚠️ Google API no responde. Usando motor de análisis local...")
-                # Si falla Google, cae automáticamente al motor local de abajo
-                
-        # 2. MOTOR DE ANÁLISIS LOCAL (Siempre funciona, no requiere internet/API)
-        with st.expander("🔍 Análisis Basado en Datos Reales", expanded=True):
+                st.sidebar.warning("⚠️ Google API no responde. Usando motor local...")
+
+        # Motor Local (siempre visible o de respaldo)
+        with st.expander("🔍 Análisis Basado en Datos Reales", expanded=not ia_respondio):
             pregunta_l = pregunta.lower()
-            
             if "host" in pregunta_l or "anfitrión" in pregunta_l:
-                st.write(f"📊 **Dato Clave:** El anfitrión con mayor inventario operativo (365 días) es **{host_top}**. Esto sugiere una gestión profesional con **{host_count}** unidades activas.")
-            
+                st.write(f"📊 **Dato Clave:** El anfitrión con mayor inventario operativo es **{host_top}**.")
             elif "precio" in pregunta_l or "caro" in pregunta_l or "barato" in pregunta_l:
-                st.write(f"💰 **Análisis de Precios:** El costo promedio es de **${precio_promedio:.2f}**. Las ciudades con precios más altos están lideradas por el top de tu gráfica de barras.")
-            
-            elif "ciudad" in pregunta_l or "donde" in pregunta_l:
-                ciudad_top = df['city'].value_counts().idxmax()
-                st.write(f"📍 **Geografía:** La ciudad con más listados en este dataset es **{ciudad_top}**. Es el mercado con mayor competencia actualmente.")
-            
+                st.write(f"💰 **Análisis de Precios:** El costo promedio es de **${precio_promedio:.2f}**.")
             else:
-                st.write("🤖 **Nota del Sistema:** No puedo conectar con el servidor de Google ahora mismo, pero basándome en los datos: tienes un mercado de más de 232 mil propiedades donde el precio medio es alto, lo que indica un mercado de alta demanda.")
-            
-            st.caption("Esta respuesta fue generada localmente porque la API de Google está experimentando bloqueos de conexión.")
+                st.write(f"🤖 **Análisis:** Con {len(df):,} registros, este dataset muestra un mercado diverso con un precio medio de ${precio_promedio:.2f}.")
+            st.caption("Respuesta generada localmente.")
+
+    # --- 5. VISUALIZACIÓN (Gráficas y Mapas) ---
+    st.header("📊 Explorador de Tendencias")
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        st.subheader("Top Ciudades por Precio")
+        top_cities = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
+        fig, ax = plt.subplots()
+        sns.barplot(x=top_cities.values, y=top_cities.index, color="#ff5a5f", ax=ax)
+        st.pyplot(fig)
+
+    with col_b:
+        st.subheader("Mapa de Propiedades (Muestra)")
+        st.map(df[['latitude', 'longitude']].dropna().sample(min(1500, len(df))))
+
+except Exception as e:
+    st.error(f"Error en la aplicación: {e}")
+# --- FIN DEL BLOQUE PRINCIPAL ---

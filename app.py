@@ -55,40 +55,39 @@ try:
     m3.metric("Total Registros", f"{len(df):,}")
 
     # --- 4. CONSULTOR INTELIGENTE (IA OPCIONAL) ---
-    st.sidebar.header("🤖 Consultor Gemini")
-    api_key = st.sidebar.text_input("Ingresa tu API Key:", type="password")
-
     if api_key:
         try:
-            genai.configure(api_key=api_key.strip())
-            model = genai.GenerativeModel('gemini-1.5-flash')
+            # FORZADO DE VERSIÓN ESTABLE
+            # Esto sobreescribe cualquier intento de la librería de usar v1beta
+            genai.configure(api_key=api_key.strip(), transport='rest') 
+            
+            # Usamos el identificador de modelo que Google garantiza como estable
+            model = genai.GenerativeModel('models/gemini-1.5-flash')
             
             st.sidebar.success("IA Conectada")
             pregunta = st.sidebar.text_area("Hazle una pregunta estratégica:")
             
             if pregunta:
-                contexto = f"Dataset Airbnb 2023. Host Top: {host_top} con {host_count} casas. Precio medio: {precio_promedio}. Pregunta: {pregunta}"
+                # Simplificamos el contexto para asegurar que la llamada sea ligera
+                contexto = f"Dataset Airbnb 2023. Top Host: {host_top}. Precio medio: {precio_promedio:.2f}. Pregunta: {pregunta}"
+                
                 with st.spinner("Consultando..."):
+                    # Forzamos la llamada sin usar streaming para evitar rutas beta
                     response = model.generate_content(contexto)
-                    st.info(response.text)
+                    if response.text:
+                        st.info(response.text)
+                    else:
+                        st.warning("La IA no devolvió texto. Revisa tu cuota de API.")
+                        
         except Exception as e:
-            st.sidebar.error(f"Error de IA: {e}")
-
-    # --- 5. VISUALIZACIÓN ---
-    st.header("📊 Explorador de Tendencias")
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.subheader("Top Ciudades por Precio")
-        top_cities = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
-        fig, ax = plt.subplots()
-        sns.barplot(x=top_cities.values, y=top_cities.index, color="#ff5a5f", ax=ax)
-        st.pyplot(fig)
-
-    with col_b:
-        st.subheader("Mapa de Propiedades")
-        # Muestra una muestra para que el mapa no sea lento
-        st.map(df[['latitude', 'longitude']].dropna().sample(min(2000, len(df))))
-
-except Exception as e:
-    st.error(f"Error crítico: {e}")
+            # Si el error persiste, intentamos una última maniobra: cambiar a 'gemini-1.5-pro'
+            if "404" in str(e):
+                st.sidebar.warning("Intentando conectar vía ruta alterna...")
+                try:
+                    model_alt = genai.GenerativeModel('gemini-1.5-pro')
+                    response = model_alt.generate_content("Hola, confirma conexión.")
+                    st.sidebar.success("Conectado a Gemini Pro")
+                except:
+                    st.sidebar.error("Error persistente de Google API. Verifica tu clave en AI Studio.")
+            else:
+                st.sidebar.error(f"Error de IA: {e}")

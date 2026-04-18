@@ -1,85 +1,102 @@
 import streamlit as st
 import pandas as pd
+import google.generativeai as genai
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-st.set_page_config(page_title="Airbnb Data Expert", layout="wide")
+# --- CONFIGURACIÓN DE PÁGINA ---
+st.set_page_config(page_title="Airbnb Data Expert 2023", layout="wide")
 
-# Estilo personalizado
+# --- ESTILO ---
 st.markdown("""
     <style>
-    .main { background-color: #f5f5f5; }
-    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #ff5a5f; color: white; }
+    .main { background-color: #f8f9fa; }
+    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     </style>
     """, unsafe_allow_stdio=True)
 
-st.title("📊 Airbnb Data Explorer 2023")
-st.markdown("---")
-
-# 1. Carga de Datos (Sin cambios, esto ya te funcionaba)
+# --- 1. CARGA DE DATOS (EL MOTOR) ---
 @st.cache_data
 def load_data():
-    return pd.read_csv("AB_US_2023.csv")
+    df = pd.read_csv("AB_US_2023.csv")
+    # Limpieza básica de nombres de columnas
+    df.columns = df.columns.str.strip()
+    return df
 
 try:
     df = load_data()
-    st.sidebar.success(f"✅ {len(df):,} registros cargados")
 except Exception as e:
-    st.error(f"No se pudo cargar el archivo: {e}")
+    st.error(f"Error al cargar la base de datos: {e}")
     st.stop()
 
-# 2. PANEL DE CONTROL (Sidebar)
-st.sidebar.header("🔍 Filtros de Búsqueda")
-ciudad = st.sidebar.multiselect("Selecciona Ciudad:", options=df['city'].unique(), default=df['city'].unique()[:5])
-precio_max = st.sidebar.slider("Precio máximo por noche:", 0, int(df['price'].max()), 500)
+# --- 2. LÓGICA DE ANÁLISIS (SIN IA) ---
+# Calculamos las respuestas difíciles con Python puro para que sean 100% exactas
+df_365 = df[df['availability_365'] == 365]
+host_top = df_365['host_name'].value_counts().idxmax()
+host_count = df_365['host_name'].value_counts().max()
+precio_promedio = df['price'].mean()
 
-df_filtrado = df[(df['city'].isin(ciudad)) & (df['price'] <= precio_max)]
-
-# 3. RESPUESTAS AUTOMÁTICAS (Lo que antes hacía la IA, ahora es instantáneo)
-st.header("💡 Análisis Rápido")
-
-col1, col2, col3 = st.columns(3)
-
-with col1:
-    if st.button("🏆 Host con más propiedades (365 días)"):
-        # Filtramos disponibilidad total
-        full_year = df[df['availability_365'] == 365]
-        if not full_year.empty:
-            ganador = full_year['host_name'].value_counts().idxmax()
-            total = full_year['host_name'].value_counts().max()
-            st.info(f"El anfitrión es **{ganador}** con **{total}** propiedades disponibles todo el año.")
-        else:
-            st.warning("No hay datos para esta consulta.")
-
-with col2:
-    if st.button("💰 Ciudad más cara (Promedio)"):
-        cara = df.groupby('city')['price'].mean().idxmax()
-        precio = df.groupby('city')['price'].mean().max()
-        st.info(f"La ciudad más cara es **{cara}** con un promedio de **${precio:.2f}**")
-
-with col3:
-    if st.button("🏠 Tipo de habitación más común"):
-        tipo = df['room_type'].value_counts().idxmax()
-        st.info(f"El tipo preferido es: **{tipo}**")
-
-# 4. VISUALIZACIÓN DE DATOS
+# --- 3. INTERFAZ VISUAL ---
+st.title("🏠 Airbnb Concierge & Data Explorer")
 st.markdown("---")
-st.header("📈 Gráficos de Tendencias")
 
-tab1, tab2 = st.tabs(["Distribución de Precios", "Mapa de Ubicaciones"])
+# Métricas Principales
+m1, m2, m3 = st.columns(3)
+m1.metric("Anfitrión Top (365 días)", host_top, f"{host_count} propiedades")
+m2.metric("Precio Promedio", f"${precio_promedio:.2f}")
+m3.metric("Total Registros", f"{len(df):,}")
 
-with tab1:
-    fig, ax = plt.subplots(figsize=(10, 4))
-    sns.histplot(df_filtrado['price'], bins=50, kde=True, color='#ff5a5f', ax=ax)
-    plt.title("Distribución de Precios en ciudades seleccionadas")
+# --- 4. CONSULTOR INTELIGENTE (IA OPCIONAL) ---
+st.sidebar.header("🤖 Consultor Gemini")
+api_key = st.sidebar.text_input("Ingresa tu API Key:", type="password")
+
+if api_key:
+    try:
+        genai.configure(api_key=api_key.strip())
+        # Usamos el modelo más reciente con un bloque try/except específico
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        st.sidebar.success("IA Conectada")
+        
+        pregunta = st.text_input("Hazle una pregunta estratégica al consultor sobre estos datos:")
+        
+        if pregunta:
+            # En lugar de darle el DF entero (que lo marea), le damos el resumen
+            contexto = f"""
+            El dataset de Airbnb 2023 tiene {len(df)} filas. 
+            El host con más casas disponibles todo el año es {host_top} ({host_count} casas).
+            El precio promedio es {precio_promedio}.
+            Pregunta del usuario: {pregunta}
+            """
+            with st.spinner("Consultando al experto..."):
+                response = model.generate_content(contexto)
+                st.chat_message("assistant").write(response.text)
+                
+    except Exception as e:
+        st.sidebar.warning(f"Modo IA no disponible (Error: {e})")
+
+# --- 5. EXPLORACIÓN VISUAL ---
+st.header("📊 Explorador de Tendencias")
+col_a, col_b = st.columns(2)
+
+with col_a:
+    st.subheader("Top 10 Ciudades por Precio")
+    top_cities = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
+    fig, ax = plt.subplots()
+    sns.barplot(x=top_cities.values, y=top_cities.index, palette="Reds_r", ax=ax)
     st.pyplot(fig)
 
-with tab2:
-    st.subheader("Geolocalización de Propiedades")
-    # Limpiamos datos para el mapa
-    map_df = df_filtrado[['latitude', 'longitude']].dropna().head(2000)
-    st.map(map_df)
+with col_b:
+    st.subheader("Mapa de Propiedades")
+    # Muestra una muestra aleatoria para no saturar el navegador
+    st.map(df[['latitude', 'longitude']].dropna().sample(1000))
 
-# 5. TABLA DE DATOS CRUDA
-with st.expander("Explorar datos crudos"):
-    st.write(df_filtrado.head(100))
+# --- 6. TABLA INTERACTIVA ---
+st.markdown("---")
+st.subheader("🔎 Buscador de Propiedades")
+filtro_ciudad = st.selectbox("Filtrar por ciudad:", ["Todas"] + list(df['city'].unique()))
+
+if filtro_ciudad != "Todas":
+    st.dataframe(df[df['city'] == filtro_ciudad].head(50))
+else:
+    st.dataframe(df.head(50))

@@ -1,81 +1,85 @@
 import streamlit as st
 import pandas as pd
-import google.generativeai as genai
-import os
+import matplotlib.pyplot as plt
+import seaborn as sns
 
-# CONFIGURACIÓN CRÍTICA: Forzamos el uso de la API estable v1 antes de cargar genai
-os.environ["GOOGLE_API_USE_G2_CLIENT"] = "false"
+st.set_page_config(page_title="Airbnb Data Expert", layout="wide")
 
-st.set_page_config(page_title="Airbnb AI Fix", layout="wide")
-st.title("🏠 Airbnb Concierge Inteligente (Versión Estable)")
+# Estilo personalizado
+st.markdown("""
+    <style>
+    .main { background-color: #f5f5f5; }
+    .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #ff5a5f; color: white; }
+    </style>
+    """, unsafe_allow_stdio=True)
 
-# 1. Cargar Datos
+st.title("📊 Airbnb Data Explorer 2023")
+st.markdown("---")
+
+# 1. Carga de Datos (Sin cambios, esto ya te funcionaba)
 @st.cache_data
 def load_data():
-    # Cargamos el archivo original
-    return pd.read_csv("AB_US_2023.csv") 
+    return pd.read_csv("AB_US_2023.csv")
 
 try:
     df = load_data()
-    st.success(f"✅ Datos cargados: {df.shape[0]} filas.")
+    st.sidebar.success(f"✅ {len(df):,} registros cargados")
 except Exception as e:
-    st.error(f"❌ Error al cargar el archivo: {e}")
+    st.error(f"No se pudo cargar el archivo: {e}")
     st.stop()
 
-# 2. Configurar Google
-api_key = st.sidebar.text_input("Google API Key:", type="password")
+# 2. PANEL DE CONTROL (Sidebar)
+st.sidebar.header("🔍 Filtros de Búsqueda")
+ciudad = st.sidebar.multiselect("Selecciona Ciudad:", options=df['city'].unique(), default=df['city'].unique()[:5])
+precio_max = st.sidebar.slider("Precio máximo por noche:", 0, int(df['price'].max()), 500)
 
-if api_key:
-    try:
-        # Limpiamos la clave y configuramos
-        clave_limpia = api_key.strip()
-        genai.configure(api_key=clave_limpia)
-        
-        # Seleccionamos el modelo con la ruta absoluta y sin usar v1beta
-        model = genai.GenerativeModel(
-            model_name='models/gemini-1.5-flash'
-        )
-        
-        # Pequeño truco: Forzamos una llamada simple para validar la conexión
-        # Si esto falla, saltará al except
-        _ = model.generate_content("Hola", safety_settings={})
+df_filtrado = df[(df['city'].isin(ciudad)) & (df['price'] <= precio_max)]
 
-        user_query = st.chat_input("¿Quién es el host con más propiedades?")
+# 3. RESPUESTAS AUTOMÁTICAS (Lo que antes hacía la IA, ahora es instantáneo)
+st.header("💡 Análisis Rápido")
 
-        if user_query:
-            with st.chat_message("user"):
-                st.write(user_query)
+col1, col2, col3 = st.columns(3)
 
-            with st.chat_message("assistant"):
-                with st.spinner("Analizando datos..."):
-                    prompt = f"""
-                    Tienes un dataframe llamado 'df' con estas columnas: {list(df.columns)}
-                    Escribe ÚNICAMENTE el código de Python necesario para responder a: '{user_query}'
-                    El resultado final debe guardarse en una variable llamada 'resultado'.
-                    Usa nombres de columnas exactos.
-                    No des explicaciones, solo el código.
-                    """
-                    
-                    try:
-                        # Llamada directa al modelo estable
-                        response = model.generate_content(prompt)
-                        codigo_limpio = response.text.replace('```python', '').replace('```', '').strip()
-                        
-                        # Ejecución del código generado
-                        locales = {'df': df}
-                        exec(codigo_limpio, {}, locales)
-                        resultado = locales.get('resultado', "No se pudo calcular el resultado.")
-                        
-                        st.write("### Respuesta:")
-                        st.write(resultado)
-                        
-                        with st.expander("Ver lógica interna"):
-                            st.code(codigo_limpio)
-                    except Exception as e:
-                        st.error(f"Error en la generación de respuesta: {e}")
-                        
-    except Exception as e:
-        st.error(f"⚠️ Error de API: {e}")
-        st.info("Asegúrate de que tu API Key sea de Google AI Studio y que el modelo gemini-1.5-flash esté disponible.")
-else:
-    st.info("Ingresa tu API Key para comenzar.")
+with col1:
+    if st.button("🏆 Host con más propiedades (365 días)"):
+        # Filtramos disponibilidad total
+        full_year = df[df['availability_365'] == 365]
+        if not full_year.empty:
+            ganador = full_year['host_name'].value_counts().idxmax()
+            total = full_year['host_name'].value_counts().max()
+            st.info(f"El anfitrión es **{ganador}** con **{total}** propiedades disponibles todo el año.")
+        else:
+            st.warning("No hay datos para esta consulta.")
+
+with col2:
+    if st.button("💰 Ciudad más cara (Promedio)"):
+        cara = df.groupby('city')['price'].mean().idxmax()
+        precio = df.groupby('city')['price'].mean().max()
+        st.info(f"La ciudad más cara es **{cara}** con un promedio de **${precio:.2f}**")
+
+with col3:
+    if st.button("🏠 Tipo de habitación más común"):
+        tipo = df['room_type'].value_counts().idxmax()
+        st.info(f"El tipo preferido es: **{tipo}**")
+
+# 4. VISUALIZACIÓN DE DATOS
+st.markdown("---")
+st.header("📈 Gráficos de Tendencias")
+
+tab1, tab2 = st.tabs(["Distribución de Precios", "Mapa de Ubicaciones"])
+
+with tab1:
+    fig, ax = plt.subplots(figsize=(10, 4))
+    sns.histplot(df_filtrado['price'], bins=50, kde=True, color='#ff5a5f', ax=ax)
+    plt.title("Distribución de Precios en ciudades seleccionadas")
+    st.pyplot(fig)
+
+with tab2:
+    st.subheader("Geolocalización de Propiedades")
+    # Limpiamos datos para el mapa
+    map_df = df_filtrado[['latitude', 'longitude']].dropna().head(2000)
+    st.map(map_df)
+
+# 5. TABLA DE DATOS CRUDA
+with st.expander("Explorar datos crudos"):
+    st.write(df_filtrado.head(100))

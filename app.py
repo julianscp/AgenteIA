@@ -163,6 +163,29 @@ if df is not None:
         c_data = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
         st.bar_chart(c_data, color="#484848")
 
-# Sidebar
-st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Airbnb_Logo_B%C3%A9lo.svg/2560px-Airbnb_Logo_B%C3%A9lo.svg.png", width=150)
-st.sidebar.info("Agente Inteligente configurado para análisis 'From Scratch' con Llama-3.")
+# --- SIDEBAR: DESCRIPCIÓN DETALLADA DEL AGENTE (CORREGIDO) ---
+with st.sidebar:
+    # Logo estable de Airbnb
+    st.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Airbnb_Logo_B%C3%A9lo.svg/512px-Airbnb_Logo_B%C3%A9lo.svg.png", width=150)
+    
+    st.markdown("""
+    # 🤖 Sobre el Agente Estratégico
+    
+    Este agente es una **IA Analítica** entrenada para procesar el dataset de **Airbnb US 2023**. Utiliza una arquitectura de **Llama-3 sobre LPUs (Groq)** para ofrecer respuestas con baja latencia.
+    
+    ### 🎯 ¿Qué puede hacer?
+    * **Análisis de Saturación:** Identifica exceso de oferta en barrios.
+    * **Benchmarking:** Compara precios locales vs promedio nacional.
+    * **Explicación de Anomalías:** Analiza zonas como *Unincorporated Areas*.
+    * **Estrategia:** Sugiere ciudades según exclusividad y volumen.
+    
+    ### ❓ ¿Qué puedes preguntarle?
+    1. *"¿Por qué Unincorporated Areas domina el volumen frente a ciudades grandes?"*
+    2. *"¿Me conviene más Clark County o New York para lujo?"*
+    3. *"¿Qué impacto tiene el precio promedio de $259 en la competitividad?"*
+    
+    ---
+    **Tecnología:** Python + Streamlit + Llama-3.
+    """)
+    
+    st.info("📌 **Nota del Equipo:** El agente utiliza razonamiento deductivo basado en los datos cargados en tiempo real.")

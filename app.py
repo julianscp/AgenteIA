@@ -4,18 +4,43 @@ import requests
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-# --- 1. CONFIGURACIÓN Y ESTILO ---
+# --- 1. CONFIGURACIÓN Y ESTILO (UI/UX MEJORADA) ---
 st.set_page_config(page_title="Airbnb Strategic Analyst 2023", layout="wide")
 
-# CSS personalizado para que no parezca un chat genérico
+# CSS que funciona en Modo Claro y Oscuro
 st.markdown("""
     <style>
-    .main { background-color: #f8f9fa; }
-    .stMetric { background-color: #ffffff; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); border-left: 5px solid #FF5A5F; }
-    .stChatMessage { border-radius: 15px; margin-bottom: 10px; }
-    .stButton>button { border-radius: 20px; background-color: #FF5A5F; color: white; border: none; }
-    h1 { color: #484848; font-weight: 800; }
-    .chat-container { border: 1px solid #e0e0e0; padding: 20px; border-radius: 15px; background: white; margin-top: 20px; }
+    /* Forzamos colores para las métricas y contenedores para que no se pierdan en el fondo */
+    .stMetric {
+        background-color: #f0f2f6;
+        padding: 15px;
+        border-radius: 10px;
+        border-left: 5px solid #FF5A5F;
+        color: #1E1E1E !important; /* Texto oscuro para legibilidad */
+    }
+    [data-testid="stMetricValue"] {
+        color: #FF5A5F !important;
+        font-weight: bold;
+    }
+    [data-testid="stMetricLabel"] {
+        color: #484848 !important;
+    }
+    .main-header {
+        font-size: 2.5rem;
+        font-weight: 800;
+        color: #FF5A5F;
+        margin-bottom: 0.5rem;
+    }
+    .sub-header {
+        font-size: 1.2rem;
+        color: #484848;
+        margin-bottom: 2rem;
+    }
+    /* Estilo para los mensajes del chat */
+    .stChatMessage {
+        border: 1px solid #e0e0e0;
+        border-radius: 15px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -43,7 +68,7 @@ def get_advanced_insights(df):
     expensive_val = df.groupby('city')['price'].mean().max()
     return avg_p, top_n, top_n_count, top_city, expensive_city, expensive_val
 
-# --- 4. LÓGICA DEL AGENTE (HARDCODED KEY) ---
+# --- 4. LÓGICA DEL AGENTE (KEY INTEGRADA) ---
 GROQ_API_KEY = "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"
 
 def call_groq_agent(prompt_context, user_query):
@@ -61,83 +86,83 @@ def call_groq_agent(prompt_context, user_query):
     return response.json()['choices'][0]['message']['content']
 
 # --- 5. INTERFAZ PRINCIPAL ---
-st.title("🚀 Airbnb Strategic Insight Agent")
-st.markdown("Analizador inteligente de tendencias inmobiliarias basado en el mercado 2023.")
+st.markdown('<p class="main-header">🚀 Airbnb Strategic Insight Agent</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">Analizador de tendencias inmobiliarias basado en el mercado 2023.</p>', unsafe_allow_html=True)
 
 if df is not None:
     avg_p, top_n, n_count, top_c, exp_c, exp_v = get_advanced_insights(df)
     
-    # Dashboard de Métricas
+    # Dashboard de Métricas con diseño corregido
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("💰 Precio Promedio", f"${avg_p:.2f}")
-    col2.metric("📍 Barrio Saturado", top_n)
-    col3.metric("💎 Ciudad Exclusiva", exp_c)
-    col4.metric("📈 Mayor Oferta", top_c)
+    with col1: st.metric("💰 Precio Promedio", f"${avg_p:.2f}")
+    with col2: st.metric("📍 Barrio Saturado", top_n)
+    with col3: st.metric("💎 Ciudad Exclusiva", exp_c)
+    with col4: st.metric("📈 Mayor Oferta", top_c)
 
-    # Mapa con Estilo
-    st.markdown("### 🗺️ Distribución Geográfica de Listings")
+    # Mapa Interactivo
+    st.markdown("### 🗺️ Distribución Geográfica")
     st.map(df[['latitude', 'longitude']].sample(n=1000), color='#FF5A5F')
 
     st.markdown("---")
     
-    # --- SECCIÓN DE CONSULTA (HISTORIAL) ---
-    st.subheader("💬 Consulta Estratégica")
+    # --- SECCIÓN DE CONSULTA CON HISTORIAL ---
+    st.subheader("💬 Consola de Análisis Estratégico")
     
-    # Inicializar historial de chat si no existe
     if "messages" not in st.session_state:
         st.session_state.messages = []
 
-    # Mostrar mensajes previos para que no desaparezcan
-    for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # Contenedor para que el historial se vea ordenado
+    chat_container = st.container()
+
+    with chat_container:
+        for message in st.session_state.messages:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
     # Input del usuario
-    user_input = st.chat_input("Escribe tu consulta aquí...")
+    user_input = st.chat_input("Pregunta sobre rentabilidad, zonas o competencia...")
 
     if user_input:
-        # 1. Guardar y mostrar pregunta del usuario
+        # Guardar y mostrar pregunta del usuario inmediatamente
         st.session_state.messages.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
 
-        # 2. Preparar contexto mejorado
+        # Contexto para el Agente
         prompt_context = f"""
-        Eres un Consultor Senior de Real Estate. 
-        Contexto del Mercado: Precio medio nacional ${avg_p:.2f}. Barrio con más volumen: {top_n} ({n_count} listings). 
-        La ciudad más costosa es {exp_c} (${exp_v:.2f}).
-        Regla de oro: No parezcas un bot. Analiza la saturación de mercado, regulaciones y competitividad. 
-        Si el usuario pregunta por 'Unincorporated', explica que son zonas con menos regulaciones y mayor flexibilidad para Airbnb.
+        Eres un Consultor Senior de Real Estate experto en el mercado de USA. 
+        Contexto 2023: Precio medio ${avg_p:.2f}. El barrio más saturado es {top_n}.
+        La ciudad más exclusiva es {exp_c}.
+        
+        INSTRUCCIONES: No seas repetitivo. Si preguntan por 'Unincorporated Areas', explica que son zonas con leyes de zonificación flexibles. Proporciona insights sobre inversión y saturación.
         """
 
-        # 3. Llamar a la API
         try:
-            with st.spinner("Generando análisis estratégico..."):
+            with st.spinner("Analizando base de datos..."):
                 response_text = call_groq_agent(prompt_context, user_input)
                 
-                # 4. Guardar y mostrar respuesta
+                # Guardar y mostrar respuesta
                 st.session_state.messages.append({"role": "assistant", "content": response_text})
                 with st.chat_message("assistant"):
                     st.markdown(response_text)
+                    # Forzamos un rerun para asegurar que el historial se mantenga visible arriba
+                    st.rerun()
         except Exception as e:
-            st.error("Hubo un problema al procesar la respuesta.")
+            st.error("Error al procesar la respuesta.")
 
     # --- 6. VISUALIZACIONES INFERIORES ---
     st.markdown("---")
-    st.subheader("📊 Análisis de Datos Visual")
-    c_left, c_right = st.columns(2)
+    col_l, col_r = st.columns(2)
     
-    with c_left:
-        st.write("**Top 10 Barrios por Volumen de Listings**")
-        n_data = df['neighbourhood'].value_counts().head(10)
-        st.bar_chart(n_data, color="#FF5A5F")
+    with col_l:
+        st.write("**Top 10 Barrios por Volumen**")
+        st.bar_chart(df['neighbourhood'].value_counts().head(10), color="#FF5A5F")
     
-    with c_right:
-        st.write("**Ciudades con Precios más Elevados (Promedio)**")
+    with col_r:
+        st.write("**Ciudades con Precios Prime (Promedio)**")
         c_data = df.groupby('city')['price'].mean().sort_values(ascending=False).head(10)
         st.bar_chart(c_data, color="#484848")
 
-# Sidebar informativa (Opcional)
+# Sidebar
 st.sidebar.image("https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Airbnb_Logo_B%C3%A9lo.svg/2560px-Airbnb_Logo_B%C3%A9lo.svg.png", width=150)
-st.sidebar.markdown("### Sobre la Herramienta")
-st.sidebar.write("Este agente procesa miles de registros de Airbnb 2023 para identificar oportunidades de mercado y riesgos de inversión.")
+st.sidebar.info("Agente Inteligente configurado para análisis 'From Scratch' con Llama-3.")

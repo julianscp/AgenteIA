@@ -69,7 +69,7 @@ def get_advanced_insights(df):
     return avg_p, top_n, top_n_count, top_city, expensive_city, expensive_val
 
 # --- 4. LÓGICA DEL AGENTE (KEY INTEGRADA) ---
-GROQ_API_KEY = "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"
+GROQ_API_KEY = "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"
 
 def call_groq_agent(prompt_context, user_query):
     url = "https://api.groq.com/openai/v1/chat/completions"
